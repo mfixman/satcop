@@ -3,6 +3,7 @@
 mod binding;
 mod block;
 mod builder;
+mod collection;
 mod digest;
 mod ground;
 mod options;
@@ -32,11 +33,16 @@ fn report_err<T>(err: anyhow::Error) -> T {
 
 fn go(matrix: Arc<Matrix>, options: Arc<Options>, index: usize) {
     let mut search = Search::default();
-    search.seed(index as u64);
+    let seed = options.seed.wrapping_add(index as u64);
+    search.seed(seed);
     search.go(&matrix);
 
     let stdout = stdout();
     let mut lock = stdout.lock();
+    search
+        .write_collection(&matrix, &options, seed)
+        .context("writing collection output")
+        .unwrap_or_else(report_err);
     if options.statistics {
         statistics::print(&mut lock)
             .context("printing statistics")
@@ -50,6 +56,10 @@ fn go(matrix: Arc<Matrix>, options: Arc<Options>, index: usize) {
 }
 
 fn main() {
+    std::panic::set_hook(Box::new(|error| {
+        eprintln!("satcop: {}", error);
+        std::process::exit(1);
+    }));
     let start = Instant::now();
     let options = Arc::new(Options::new());
     let matrix = Arc::new(tptp::load(&options).unwrap_or_else(|err| {
@@ -72,7 +82,7 @@ fn main() {
     statistics::SYMBOLS.set(matrix.symbols.len().as_u32());
     statistics::CLAUSES.set(matrix.clauses.len().as_u32());
     statistics::START_CLAUSES.set(matrix.start.len() as u32);
-    for i in 0..num_cpus::get() {
+    for i in 0..options.threads.unwrap_or_else(num_cpus::get) {
         let thread_matrix = matrix.clone();
         let thread_opts = options.clone();
         std::thread::Builder::new()

@@ -55,7 +55,10 @@ struct CDCL(*mut PicoSAT);
 impl Default for CDCL {
     fn default() -> Self {
         let sat = unsafe { picosat_init() };
-        assert!(unsafe { picosat_enable_trace_generation(sat) } != 0);
+        assert!(
+            unsafe { picosat_enable_trace_generation(sat) } != 0,
+            "PicoSAT must be compiled with --trace for core extraction"
+        );
         Self(sat)
     }
 }
