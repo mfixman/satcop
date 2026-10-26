@@ -43,7 +43,7 @@ target/release/satcop problem.p --threads 1 --seed 0 --time 900 --quiet \
 ```
 
 On a successful refutation, `--collection-output` writes a new JSON file with
-schema `satcop.collection.v1`. Existing files are never replaced. The export
+schema `satcop.collection.v2`. Existing files are never replaced. The export
 contains the entire preprocessed first-order matrix, symbol identities,
 formula provenance, conjecture flags, search constraints, actual start clauses,
 and the matrix clause IDs originating the ground clauses in PicoSAT's core.

@@ -1,49 +1,21 @@
-use crate::block::Id;
 use crate::options::Options;
-use crate::syntax::{Clause, Matrix, Sort, Source, Term};
-use serde_json::{json, Value};
+use crate::syntax::{Matrix, Sort, Source};
+use anyhow::Context;
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 
-fn term(matrix: &Matrix, id: Id<Term>) -> Value {
-    let value = matrix.terms[id];
-    if value.is_var() {
-        return json!({"variable": value.as_var().as_u32()});
-    }
-    let symbol = value.as_sym();
-    let args: Vec<_> = (0..matrix.symbols[symbol].arity)
-        .map(|i| term(matrix, matrix.terms[id.offset(i + 1)].as_arg()))
-        .collect();
-    json!({"symbol": symbol.as_u32(), "args": args})
-}
-
-fn clause(matrix: &Matrix, id: Id<Clause>) -> Value {
-    let clause = matrix.clauses[id];
-    let literals: Vec<_> = clause.literals.into_iter().map(|id| {
-        let literal = matrix.literals[id];
-        json!({"positive": literal.pol, "atom": term(matrix, literal.atom)})
-    }).collect();
-    let disequations: Vec<_> = clause
-        .disequations
-        .into_iter()
-        .map(|id| {
-            let diseq = matrix.disequations[id];
-            json!([term(matrix, diseq.left), term(matrix, diseq.right)])
-        })
-        .collect();
-    let source = match &matrix.info[id].source {
-        Source::Equality => json!({"kind": "equality"}),
-        Source::Axiom { path, name } => {
-            json!({"kind": "input", "path": path.as_ref(), "name": name})
+fn quote(value: &str) -> String {
+    let mut text = String::from("\"");
+    for ch in value.chars() {
+        match ch {
+            '"' => text.push_str("\\\""),
+            '\\' => text.push_str("\\\\"),
+            '\0'..='\u{1f}' => text.push_str(&format!("\\u{:04x}", ch as u32)),
+            _ => text.push(ch),
         }
-    };
-    json!({
-        "is_goal": matrix.info[id].is_goal,
-        "source": source,
-        "variables": clause.vars.as_u32(),
-        "literals": literals,
-        "disequations": disequations,
-    })
+    }
+    text.push('"');
+    text
 }
 
 pub(crate) fn write(
@@ -56,48 +28,114 @@ pub(crate) fn write(
         Some(path) => path,
         None => return Ok(()),
     };
-    let symbols: Vec<_> = matrix
+    let problem = options.path.to_str().context("non-UTF-8 problem path")?;
+    let symbols = matrix
         .symbols
         .range()
         .into_iter()
         .map(|id| {
-            let symbol = &matrix.symbols[id];
-            json!({
-                "name": symbol.name.to_string(),
-                "arity": symbol.arity,
-                "predicate": symbol.sort == Sort::Bool,
-            })
+            let sym = &matrix.symbols[id];
+            format!(
+                "[{},{},{}]",
+                quote(&sym.name.to_string()),
+                sym.arity,
+                sym.sort == Sort::Bool
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    let sources = matrix
+        .clauses
+        .range()
+        .into_iter()
+        .map(|id| match &matrix.info[id].source {
+            Source::Equality => "null".into(),
+            Source::Axiom { path, name } => {
+                format!("[{},{}]", quote(path), quote(name))
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    let terms: Vec<_> = matrix
+        .terms
+        .range()
+        .into_iter()
+        .map(|id| matrix.terms[id])
+        .collect();
+    let literals: Vec<_> = matrix
+        .literals
+        .range()
+        .into_iter()
+        .map(|id| {
+            let lit = matrix.literals[id];
+            [lit.pol as u32, lit.atom.as_u32()]
+        })
+        .collect();
+    let disequations: Vec<_> = matrix
+        .disequations
+        .range()
+        .into_iter()
+        .map(|id| {
+            let diseq = matrix.disequations[id];
+            [diseq.left.as_u32(), diseq.right.as_u32()]
         })
         .collect();
     let clauses: Vec<_> = matrix
         .clauses
         .range()
         .into_iter()
-        .map(|id| clause(matrix, id))
+        .map(|id| {
+            let clause = matrix.clauses[id];
+            [
+                clause.vars.as_u32(),
+                clause.literals.start.as_u32(),
+                clause.literals.stop.as_u32(),
+                clause.disequations.start.as_u32(),
+                clause.disequations.stop.as_u32(),
+                matrix.info[id].is_goal as u32,
+            ]
+        })
         .collect();
     let start: Vec<_> = matrix.start.iter().map(|id| id.as_u32()).collect();
-    let payload = json!({
-        "schema": "satcop.collection.v1",
-        "problem_path": options.path,
-        "status": if matrix.have_conjecture { "Theorem" } else { "Unsatisfiable" },
-        "prover_version": env!("CARGO_PKG_VERSION"),
-        "prover_revision": option_env!("SATCOP_REVISION"),
-        "seed": seed,
-        "threads": options.threads.unwrap_or_else(num_cpus::get),
-        "timeout_seconds": options.time,
-        "matrix": {
-            "symbols": symbols,
-            "clauses": clauses,
-            "start_clause_ids": start,
-            "have_conjecture": matrix.have_conjecture,
-            "grounding_constant": matrix.grounding_constant.as_u32(),
-        },
-        "core_clause_ids": core,
-    });
+    let revision = option_env!("SATCOP_REVISION")
+        .map(quote)
+        .unwrap_or_else(|| "null".into());
+    let timeout = options
+        .time
+        .map(|time| time.to_string())
+        .unwrap_or_else(|| "null".into());
+    let status = if matrix.have_conjecture {
+        "Theorem"
+    } else {
+        "Unsatisfiable"
+    };
+
     let file = OpenOptions::new().write(true).create_new(true).open(path)?;
     let mut writer = BufWriter::new(file);
-    serde_json::to_writer(&mut writer, &payload)?;
-    writeln!(writer)?;
+    write!(
+        writer,
+        r#"{{"schema":"satcop.collection.v2","problem_path":{},"status":"{}","prover_version":"{}","prover_revision":{},"seed":{},"threads":{},"timeout_seconds":{},"matrix":{{"#,
+        quote(problem),
+        status,
+        env!("CARGO_PKG_VERSION"),
+        revision,
+        seed,
+        options.threads.unwrap_or_else(num_cpus::get),
+        timeout
+    )?;
+    write!(
+        writer,
+        r#""symbols":[{}],"sources":[{}],"terms":{:?},"literals":{:?},"disequations":{:?},"clauses":{:?},"#,
+        symbols, sources, terms, literals, disequations, clauses
+    )?;
+    writeln!(
+        writer,
+        r#""start_clause_ids":{:?},"have_conjecture":{},"grounding_constant":{}}},"core_clause_ids":{:?}}}"#,
+        start,
+        matrix.have_conjecture,
+        matrix.grounding_constant.as_u32(),
+        core
+    )?;
     writer.flush()?;
     Ok(())
 }
