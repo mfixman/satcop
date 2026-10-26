@@ -38,23 +38,6 @@ impl Search {
         tstp::print_proof(w, &self.ground, options, matrix)
     }
 
-    pub(crate) fn write_collection(
-        &self,
-        matrix: &Matrix,
-        options: &Options,
-        seed: u64,
-    ) -> anyhow::Result<()> {
-        if options.collection_output.is_some() {
-            crate::collection::write(
-                matrix,
-                self.ground.core_clause_ids(),
-                options,
-                seed,
-            )?;
-        }
-        Ok(())
-    }
-
     pub(crate) fn go(&mut self, matrix: &Matrix) {
         self.depth_limit.increment();
 

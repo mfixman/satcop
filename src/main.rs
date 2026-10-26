@@ -3,7 +3,6 @@
 mod binding;
 mod block;
 mod builder;
-mod collection;
 mod digest;
 mod ground;
 mod options;
@@ -33,16 +32,11 @@ fn report_err<T>(err: anyhow::Error) -> T {
 
 fn go(matrix: Arc<Matrix>, options: Arc<Options>, index: usize) {
     let mut search = Search::default();
-    let seed = options.seed.wrapping_add(index as u64);
-    search.seed(seed);
+    search.seed(options.seed.wrapping_add(index as u64));
     search.go(&matrix);
 
     let stdout = stdout();
     let mut lock = stdout.lock();
-    search
-        .write_collection(&matrix, &options, seed)
-        .context("writing collection output")
-        .unwrap_or_else(report_err);
     if options.statistics {
         statistics::print(&mut lock)
             .context("printing statistics")
@@ -56,16 +50,26 @@ fn go(matrix: Arc<Matrix>, options: Arc<Options>, index: usize) {
 }
 
 fn main() {
-    std::panic::set_hook(Box::new(|error| {
-        eprintln!("satcop: {}", error);
-        std::process::exit(1);
-    }));
     let start = Instant::now();
     let options = Arc::new(Options::new());
     let matrix = Arc::new(tptp::load(&options).unwrap_or_else(|err| {
         tstp::load_error(&err);
         report_err(err)
     }));
+    if options.collect {
+        println!("% SATCoP terms {:?}", matrix.terms);
+        println!("% SATCoP literals {:?}", matrix.literals);
+        for id in matrix.symbols.range() {
+            println!("% SATCoP symbol {:?} {}", id, matrix.symbols[id].arity);
+        }
+        for id in matrix.clauses.range() {
+            let clause = matrix.clauses[id];
+            println!(
+                "% SATCoP clause {:?} {:?} {:?} {}",
+                id, clause.vars, clause.literals, matrix.info[id].is_goal
+            );
+        }
+    }
     if options.clausify {
         matrix.print_cnf();
         return;
@@ -82,7 +86,7 @@ fn main() {
     statistics::SYMBOLS.set(matrix.symbols.len().as_u32());
     statistics::CLAUSES.set(matrix.clauses.len().as_u32());
     statistics::START_CLAUSES.set(matrix.start.len() as u32);
-    for i in 0..options.threads.unwrap_or_else(num_cpus::get) {
+    for i in 0..num_cpus::get() {
         let thread_matrix = matrix.clone();
         let thread_opts = options.clone();
         std::thread::Builder::new()

@@ -76,9 +76,6 @@ impl Ground {
         bindings: &Bindings,
         clause: Off<Clause>,
     ) {
-        if self.sat.unsat {
-            return;
-        }
         statistics::SAT_CLAUSES.inc();
         let literals = matrix.clauses[clause.id].literals;
         let mut digest = Digest::default();
@@ -210,19 +207,6 @@ impl Ground {
         })
     }
 
-    pub(crate) fn core_clause_ids(&self) -> Vec<u32> {
-        assert!(self.sat.unsat);
-        let mut core: Vec<_> = self
-            .sat
-            .core()
-            .into_iter()
-            .map(|id| self.origins[id].as_u32())
-            .collect();
-        core.sort_unstable();
-        core.dedup();
-        core
-    }
-
     pub(crate) fn print_proof<W: Write>(
         &self,
         w: &mut W,
@@ -230,6 +214,7 @@ impl Ground {
     ) -> anyhow::Result<()> {
         for (gi, record) in self.sat.core().into_iter().enumerate() {
             let origin = self.origins[record];
+            writeln!(w, "% SATCoP core {}", origin.as_u32())?;
             write!(w, "cnf(g{}, plain, ", gi)?;
             let clause = self.sat.clauses[record];
             if clause.is_empty() {
@@ -294,44 +279,5 @@ impl Ground {
         }
         write!(w, ")")?;
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::builder::Builder;
-    use std::rc::Rc;
-
-    #[test]
-    fn duplicate_ground_clauses_keep_core_origins_aligned() {
-        let mut builder = Builder::default();
-        builder.initialise();
-        let symbol = builder.new_symbol(Symbol {
-            arity: 0,
-            sort: Sort::Bool,
-            name: Name::Atom("p".into()),
-        });
-        for pol in [true, true, false] {
-            let atom = Rc::new(FOFTerm::Fun(symbol, vec![]));
-            let info = Info {
-                is_goal: false,
-                source: Source::Equality,
-            };
-            builder.clause(
-                CNF(vec![NNFLiteral { pol, atom }]),
-                Id::new(0),
-                info,
-                true,
-            );
-        }
-        let matrix = builder.finish();
-        let bindings = Bindings::default();
-        let mut ground = Ground::default();
-        for id in matrix.clauses.range() {
-            ground.insert_clause(&matrix, &bindings, Off::new(id, 0));
-        }
-        assert!(ground.unsat());
-        assert_eq!(ground.core_clause_ids(), vec![0, 2]);
     }
 }
