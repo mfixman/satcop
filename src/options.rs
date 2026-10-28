@@ -32,6 +32,13 @@ pub(crate) struct Options {
 
     #[clap(long, default_value = "0", about = "First search seed")]
     pub(crate) seed: u64,
+
+    #[clap(
+        long,
+        parse(from_os_str),
+        about = "Order extensions by clause weights, one per matrix clause"
+    )]
+    pub(crate) weights: Option<PathBuf>,
 }
 
 impl Options {

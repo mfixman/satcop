@@ -20,6 +20,7 @@ use crate::search::Search;
 use crate::syntax::Matrix;
 use anyhow::Context;
 use std::io::stdout;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -28,6 +29,25 @@ const STACK: usize = 0x1000000;
 fn report_err<T>(err: anyhow::Error) -> T {
     eprintln!("satcop: {:?}", err.context("fatal error, exiting"));
     std::process::exit(1);
+}
+
+fn load_weights(path: &Path, matrix: &Matrix) -> anyhow::Result<Vec<f64>> {
+    let text =
+        std::fs::read_to_string(path).context("reading clause weights")?;
+    let weights = text
+        .split_whitespace()
+        .map(str::parse)
+        .collect::<Result<Vec<f64>, _>>()
+        .context("parsing clause weights")?;
+    let clauses = matrix.clauses.len().as_u32() as usize;
+    if weights.len() != clauses {
+        anyhow::bail!(
+            "{} clause weights for {} clauses",
+            weights.len(),
+            clauses
+        );
+    }
+    Ok(weights)
 }
 
 fn go(matrix: Arc<Matrix>, options: Arc<Options>, index: usize) {
@@ -52,10 +72,15 @@ fn go(matrix: Arc<Matrix>, options: Arc<Options>, index: usize) {
 fn main() {
     let start = Instant::now();
     let options = Arc::new(Options::new());
-    let matrix = Arc::new(tptp::load(&options).unwrap_or_else(|err| {
+    let mut matrix = tptp::load(&options).unwrap_or_else(|err| {
         tstp::load_error(&err);
         report_err(err)
-    }));
+    });
+    if let Some(path) = &options.weights {
+        matrix.weights =
+            load_weights(path, &matrix).unwrap_or_else(report_err);
+    }
+    let matrix = Arc::new(matrix);
     if options.collect {
         println!("% SATCoP terms {:?}", matrix.terms);
         println!("% SATCoP literals {:?}", matrix.literals);

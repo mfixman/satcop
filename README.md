@@ -22,3 +22,10 @@ matrix clause IDs for ground clauses in the UNSAT core. An external wrapper
 can capture stdout and translate it into training data. PicoSAT must have
 trace support enabled. See `packages/axiom_prediction/README.md` in the
 Connections repository for the wrapper and build instructions.
+
+## Clause weights
+
+`satcop problem.p --weights weights.txt` reads one positive weight per matrix
+clause, in the clause order printed by `--collect`. Each extension step then
+orders its alternatives by a weighted random permutation, proportional to the
+clause weights, instead of shuffling them uniformly.

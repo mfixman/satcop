@@ -24,6 +24,24 @@ impl DefaultRng {
     pub(crate) fn shuffle<T>(&mut self, slice: &mut [T]) {
         slice.shuffle(&mut self.0);
     }
+
+    // Efraimidis-Spirakis: ascending Exp(1) / weight is Plackett-Luce order.
+    pub(crate) fn weighted_shuffle<T: Copy>(
+        &mut self,
+        slice: &mut [T],
+        weight: impl Fn(T) -> f64,
+    ) {
+        let mut keyed = slice
+            .iter()
+            .map(|item| {
+                (-(1.0 - self.0.gen::<f64>()).ln() / weight(*item), *item)
+            })
+            .collect::<Vec<_>>();
+        keyed.sort_by(|left, right| left.0.total_cmp(&right.0));
+        for (slot, (_, item)) in slice.iter_mut().zip(keyed) {
+            *slot = item;
+        }
+    }
 }
 
 impl Default for DefaultRng {

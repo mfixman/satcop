@@ -162,6 +162,7 @@ pub(crate) struct Matrix {
     pub(crate) index: BlockMap<Symbol, [Vec<Position>; 2]>,
     pub(crate) grounding_constant: Id<Symbol>,
     pub(crate) have_conjecture: bool,
+    pub(crate) weights: Vec<f64>,
 }
 
 impl Matrix {

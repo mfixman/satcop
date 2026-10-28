@@ -141,7 +141,13 @@ impl Search {
         let save_offset = self.offset;
         self.path.push(Path(goal));
         let mut alternatives = matrix.index[sym][!pol as usize].clone();
-        self.rng.shuffle(&mut alternatives);
+        if matrix.weights.is_empty() {
+            self.rng.shuffle(&mut alternatives);
+        } else {
+            self.rng.weighted_shuffle(&mut alternatives, |pos| {
+                matrix.weights[pos.cls.as_u32() as usize]
+            });
+        }
 
         'extensions: for pos in alternatives {
             let cls = matrix.clauses[pos.cls];
