@@ -79,6 +79,7 @@ fn main() {
     if let Some(path) = &options.weights {
         matrix.weights =
             load_weights(path, &matrix).unwrap_or_else(report_err);
+        matrix.drop_zero_weights();
     }
     let matrix = Arc::new(matrix);
     if options.collect {

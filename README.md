@@ -29,3 +29,4 @@ Connections repository for the wrapper and build instructions.
 clause, in the clause order printed by `--collect`. Each extension step then
 orders its alternatives by a weighted random permutation, proportional to the
 clause weights, instead of shuffling them uniformly.
+A clause with weight 0 is removed from the search.

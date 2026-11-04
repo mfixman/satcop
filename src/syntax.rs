@@ -166,6 +166,19 @@ pub(crate) struct Matrix {
 }
 
 impl Matrix {
+    // A zero weight removes a clause from the search: a top-n premise filter.
+    pub(crate) fn drop_zero_weights(&mut self) {
+        let weights = std::mem::take(&mut self.weights);
+        let keep = |id: Id<Clause>| weights[id.as_u32() as usize] > 0.0;
+        self.start.retain(|id| keep(*id));
+        for symbol in self.symbols.range() {
+            for side in self.index[symbol].iter_mut() {
+                side.retain(|pos| keep(pos.cls));
+            }
+        }
+        self.weights = weights;
+    }
+
     pub(crate) fn print_cnf(&self) {
         let mut bindings = Bindings::default();
         for id in self.clauses.range() {
