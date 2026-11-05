@@ -39,6 +39,13 @@ pub(crate) struct Options {
         about = "Order extensions by clause weights, one per matrix clause"
     )]
     pub(crate) weights: Option<PathBuf>,
+
+    #[clap(
+        long,
+        parse(from_os_str),
+        about = "Smallest depth limit at which each matrix clause may extend"
+    )]
+    pub(crate) min_depths: Option<PathBuf>,
 }
 
 impl Options {

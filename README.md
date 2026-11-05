@@ -30,3 +30,7 @@ clause, in the clause order printed by `--collect`. Each extension step then
 orders its alternatives by a weighted random permutation, proportional to the
 clause weights, instead of shuffling them uniformly.
 A clause with weight 0 is removed from the search.
+
+`satcop problem.p --min-depths depths.txt` reads one integer per matrix clause. A clause
+may extend only once the iterative-deepening limit reaches its value, so deepening
+also widens the set of usable clauses. Start clauses are unaffected.

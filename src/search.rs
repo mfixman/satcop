@@ -150,6 +150,12 @@ impl Search {
         }
 
         'extensions: for pos in alternatives {
+            if !matrix.min_depths.is_empty()
+                && matrix.min_depths[pos.cls.as_u32() as usize]
+                    > self.depth_limit.as_u32()
+            {
+                continue;
+            }
             let cls = matrix.clauses[pos.cls];
             self.bindings.resize(cls.vars.offset(self.offset));
             self.clauses.push(Off::new(pos.cls, self.offset));

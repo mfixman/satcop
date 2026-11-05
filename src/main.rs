@@ -50,6 +50,20 @@ fn load_weights(path: &Path, matrix: &Matrix) -> anyhow::Result<Vec<f64>> {
     Ok(weights)
 }
 
+fn load_min_depths(path: &Path, matrix: &Matrix) -> anyhow::Result<Vec<u32>> {
+    let text = std::fs::read_to_string(path).context("reading min depths")?;
+    let depths = text
+        .split_whitespace()
+        .map(str::parse)
+        .collect::<Result<Vec<u32>, _>>()
+        .context("parsing min depths")?;
+    let clauses = matrix.clauses.len().as_u32() as usize;
+    if depths.len() != clauses {
+        anyhow::bail!("{} min depths for {} clauses", depths.len(), clauses);
+    }
+    Ok(depths)
+}
+
 fn go(matrix: Arc<Matrix>, options: Arc<Options>, index: usize) {
     let mut search = Search::default();
     search.seed(options.seed.wrapping_add(index as u64));
@@ -80,6 +94,10 @@ fn main() {
         matrix.weights =
             load_weights(path, &matrix).unwrap_or_else(report_err);
         matrix.drop_zero_weights();
+    }
+    if let Some(path) = &options.min_depths {
+        matrix.min_depths =
+            load_min_depths(path, &matrix).unwrap_or_else(report_err);
     }
     let matrix = Arc::new(matrix);
     if options.collect {
