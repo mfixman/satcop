@@ -64,6 +64,17 @@ fn load_min_depths(path: &Path, matrix: &Matrix) -> anyhow::Result<Vec<u32>> {
     Ok(depths)
 }
 
+// A top-n premise filter: zero every clause below weight 1 except the n highest; stable order breaks ties.
+fn keep_top(weights: &mut [f64], count: usize) {
+    let mut axioms = (0..weights.len())
+        .filter(|&i| weights[i] < 1.0)
+        .collect::<Vec<_>>();
+    axioms.sort_by(|&a, &b| weights[b].total_cmp(&weights[a]));
+    for &i in axioms.iter().skip(count) {
+        weights[i] = 0.0;
+    }
+}
+
 fn go(matrix: Arc<Matrix>, options: Arc<Options>, index: usize) {
     let mut search = Search::default();
     search.seed(options.seed.wrapping_add(index as u64));
@@ -93,6 +104,9 @@ fn main() {
     if let Some(path) = &options.weights {
         matrix.weights =
             load_weights(path, &matrix).unwrap_or_else(report_err);
+        if let Some(count) = options.filter_top {
+            keep_top(&mut matrix.weights, count);
+        }
         matrix.drop_zero_weights();
         matrix.weight_mix = options.weight_mix;
     }

@@ -49,6 +49,12 @@ pub(crate) struct Options {
 
     #[clap(
         long,
+        about = "Keep only the N highest-weighted clauses below weight 1 (conjectures have weight 1)"
+    )]
+    pub(crate) filter_top: Option<usize>,
+
+    #[clap(
+        long,
         parse(from_os_str),
         about = "Smallest depth limit at which each matrix clause may extend"
     )]
