@@ -42,6 +42,13 @@ pub(crate) struct Options {
 
     #[clap(
         long,
+        default_value = "1",
+        about = "Chance of ordering an extension step by the clause weights instead of uniformly"
+    )]
+    pub(crate) weight_mix: f64,
+
+    #[clap(
+        long,
         parse(from_os_str),
         about = "Smallest depth limit at which each matrix clause may extend"
     )]

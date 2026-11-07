@@ -141,7 +141,10 @@ impl Search {
         let save_offset = self.offset;
         self.path.push(Path(goal));
         let mut alternatives = matrix.index[sym][!pol as usize].clone();
-        if matrix.weights.is_empty() {
+        // Mixing keeps the default order on some steps (NeuroCore and MUSHyperNet refocus rather than replace).
+        let weighted = !matrix.weights.is_empty()
+            && (matrix.weight_mix >= 1.0 || self.rng.chance(matrix.weight_mix));
+        if !weighted {
             self.rng.shuffle(&mut alternatives);
         } else {
             self.rng.weighted_shuffle(&mut alternatives, |pos| {

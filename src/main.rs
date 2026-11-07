@@ -94,6 +94,7 @@ fn main() {
         matrix.weights =
             load_weights(path, &matrix).unwrap_or_else(report_err);
         matrix.drop_zero_weights();
+        matrix.weight_mix = options.weight_mix;
     }
     if let Some(path) = &options.min_depths {
         matrix.min_depths =

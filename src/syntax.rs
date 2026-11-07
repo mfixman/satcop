@@ -163,6 +163,7 @@ pub(crate) struct Matrix {
     pub(crate) grounding_constant: Id<Symbol>,
     pub(crate) have_conjecture: bool,
     pub(crate) weights: Vec<f64>,
+    pub(crate) weight_mix: f64,
     pub(crate) min_depths: Vec<u32>,
 }
 

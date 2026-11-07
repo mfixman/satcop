@@ -25,6 +25,11 @@ impl DefaultRng {
         slice.shuffle(&mut self.0);
     }
 
+    #[inline]
+    pub(crate) fn chance(&mut self, probability: f64) -> bool {
+        self.0.gen::<f64>() < probability
+    }
+
     // Efraimidis-Spirakis: ascending Exp(1) / weight is Plackett-Luce order.
     pub(crate) fn weighted_shuffle<T: Copy>(
         &mut self,
